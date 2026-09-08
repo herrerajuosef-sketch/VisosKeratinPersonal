@@ -2,90 +2,158 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Registro de Deudas (IndexedDB)</title>
-  <!-- Cargamos Dexie.js para gestionar IndexedDB fácilmente -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Registro de Deudas</title>
+  <!-- Dexie.js para IndexedDB -->
   <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script>
   <style>
+    * {
+      box-sizing: border-box;
+    }
     body {
-      font-family: Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       background: #f3f4f6;
-      padding: 20px;
+      padding: 12px;
+      margin: 0;
     }
     h1 {
       text-align: center;
-      color: #333;
+      color: #1f2937;
+      font-size: 1.5rem;
+      margin-top: 10px;
     }
     .form-container, .respaldo-container {
       background: white;
-      padding: 15px;
-      border-radius: 10px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-      margin-bottom: 20px;
+      padding: 16px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      margin-bottom: 16px;
     }
     label {
       display: block;
-      margin-top: 10px;
-      font-weight: bold;
+      margin-top: 12px;
+      font-weight: 600;
+      color: #374151;
+      font-size: 0.9rem;
     }
     input, textarea {
       width: 100%;
-      padding: 8px;
-      margin-top: 5px;
-      border: 1px solid #ccc;
+      padding: 12px;
+      margin-top: 6px;
+      border: 1px solid #d1d5db;
       border-radius: 8px;
-      box-sizing: border-box;
+      font-size: 1rem; /* Evita el zoom automático en iPhone */
       font-family: inherit;
     }
     textarea {
       resize: vertical;
-      height: 60px;
+      height: 70px;
     }
     button {
       width: 100%;
-      padding: 10px;
+      padding: 14px;
       margin-top: 12px;
       background: #2563eb;
       color: white;
       border: none;
       border-radius: 8px;
+      font-size: 1rem;
       font-weight: bold;
       cursor: pointer;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
     }
-    button:hover { background: #1e40af; }
+    button:active {
+      transform: scale(0.98);
+    }
 
     .btn-exportar { background: #059669; }
-    .btn-exportar:hover { background: #047857; }
-
     .btn-importar { background: #d97706; }
-    .btn-importar:hover { background: #b45309; }
 
+    /* Tarjeta de Deuda en Móvil */
     .deuda {
       background: #fff;
-      padding: 12px;
-      margin: 10px 0;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      padding: 16px;
+      margin: 12px 0;
+      border-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .deuda-header {
       display: flex;
       justify-content: space-between;
-      align-items: center;
+      align-items: baseline;
+      border-bottom: 1px solid #f3f4f6;
+      padding-bottom: 8px;
     }
 
-    .deuda-info p { margin: 4px 0; }
+    .deuda-nombre {
+      font-size: 1.1rem;
+      font-weight: bold;
+      color: #111827;
+    }
 
-    .acciones button {
+    .deuda-monto {
+      font-size: 1.2rem;
+      font-weight: bold;
+      color: #059669;
+    }
+
+    .deuda-detalles {
+      font-size: 0.88rem;
+      color: #4b5563;
+      line-height: 1.4;
+    }
+
+    /* Botones de acción organizados para pantallas táctiles */
+    .acciones {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .acciones-secundarias {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-cobrar {
+      background: #25d366; /* Verde WhatsApp */
+      color: #fff;
+      margin: 0;
+      padding: 10px;
+    }
+    .btn-cobrar:hover { background: #128c7e; }
+
+    .btn-modificar {
+      background: #4b5563;
+      margin: 0;
+      padding: 10px;
+      flex: 1;
+    }
+
+    .btn-eliminar {
       background: #dc2626;
-      margin-left: 5px;
-      padding: 8px 12px;
-      width: auto;
+      margin: 0;
+      padding: 10px;
+      flex: 1;
     }
-    .acciones button:hover { background: #b91c1c; }
 
     #total {
       font-size: 1.2em;
       font-weight: bold;
-      margin-top: 15px;
+      margin: 20px 0;
       text-align: center;
+      background: #1e293b;
+      color: white;
+      padding: 14px;
+      border-radius: 10px;
     }
   </style>
 </head>
@@ -96,8 +164,8 @@
 
   <!-- FORMULARIO DE REGISTRO -->
   <div class="form-container">
-    <label for="nombre">Nombre:</label>
-    <input type="text" id="nombre" placeholder="Ej: María">
+    <label for="nombre">Nombre del Deudor:</label>
+    <input type="text" id="nombre" placeholder="Ej: María Gómez">
 
     <label for="cantidad">Cantidad ($):</label>
     <input type="number" id="cantidad" placeholder="Ej: 5000">
@@ -108,40 +176,38 @@
     <label for="descripcion">Descripción:</label>
     <textarea id="descripcion" placeholder="Ej: Préstamo para compra de insumos"></textarea>
 
-    <button onclick="agregarDeuda()">Agregar Deuda</button>
-  </div>
-
-  <!-- SECCIÓN DE RESPALDOS (EXPORTAR / IMPORTAR) -->
-  <div class="respaldo-container">
-    <h3>Respaldos de Seguridad</h3>
-    <button class="btn-exportar" onclick="exportarJSON()">Exportar Respaldo (.json)</button>
-    
-    <label for="archivoImportar">Cargar respaldo desde archivo:</label>
-    <input type="file" id="archivoImportar" accept=".json" style="margin-bottom: 10px;">
-    <button class="btn-importar" onclick="importarJSON()">Importar Respaldo</button>
+    <button onclick="agregarDeuda()">➕ Agregar Deuda</button>
   </div>
 
   <div id="lista"></div>
   <div id="total">Total adeudado: $0</div>
 
+  <!-- SECCIÓN DE RESPALDOS -->
+  <div class="respaldo-container">
+    <h3 style="margin-top:0;">📦 Respaldos de Seguridad</h3>
+    <button class="btn-exportar" onclick="exportarJSON()">📥 Exportar Respaldo (.json)</button>
+    
+    <label for="archivoImportar">Cargar archivo de respaldo:</label>
+    <input type="file" id="archivoImportar" accept=".json" style="margin-bottom: 8px;">
+    <button class="btn-importar" onclick="importarJSON()">📤 Importar Respaldo</button>
+  </div>
+
 <script>
-  // 1. CONFIGURAR BASE DE DATOS INDEXEDDB CON DEXIE
+  // 1. BASE DE DATOS INDEXEDDB (Dexie.js)
   const db = new Dexie("DeudasAppDB");
   db.version(1).stores({
-    // 'id' es auto-incremental, 'nombre' está indexado para búsquedas
     deudas: '++id, &nombre, cantidad, fecha, descripcion'
   });
 
-  // Fecha de hoy por defecto
+  // Establecer fecha actual por defecto
   document.getElementById('fecha').valueAsDate = new Date();
 
-  // 2. RENDERIZAR DEUDAS (Consulta asíncrona a IndexedDB)
+  // 2. RENDERIZAR LISTA EN PANTALLA
   async function renderDeudas() {
     const lista = document.getElementById('lista');
     lista.innerHTML = '';
     let total = 0;
 
-    // Obtener todas las deudas ordenadas de IndexedDB
     const deudas = await db.deudas.toArray();
 
     deudas.forEach((deuda) => {
@@ -149,23 +215,31 @@
       const div = document.createElement('div');
       div.className = 'deuda';
       div.innerHTML = `
-        <div class="deuda-info">
-          <strong>${deuda.nombre}</strong> — $${deuda.cantidad}
-          <p><small><b>Fecha:</b> ${deuda.fecha || 'Sin fecha'}</small></p>
-          ${deuda.descripcion ? `<p><small><b>Descripción:</b> ${deuda.descripcion}</small></p>` : ''}
+        <div class="deuda-header">
+          <span class="deuda-nombre">${deuda.nombre}</span>
+          <span class="deuda-monto">$${deuda.cantidad}</span>
         </div>
+
+        <div class="deuda-detalles">
+          <p style="margin:2px 0;"><b>📅 Fecha:</b> ${deuda.fecha || 'Sin fecha'}</p>
+          ${deuda.descripcion ? `<p style="margin:2px 0;"><b>📝 Detalle:</b> ${deuda.descripcion}</p>` : ''}
+        </div>
+
         <div class="acciones">
-          <button onclick="modificar(${deuda.id}, prompt('Ingresa cantidad a ajustar (usa negativos para pagos):'))">Modificar</button>
-          <button onclick="eliminar(${deuda.id})">Eliminar</button>
+          <button class="btn-cobrar" onclick="enviarCobro(${deuda.id})">📲 Enviar Mensaje de Cobro</button>
+          <div class="acciones-secundarias">
+            <button class="btn-modificar" onclick="modificar(${deuda.id}, prompt('Monto a ajustar (usa negativos para abonos/pagos):'))">✏️ Modificar</button>
+            <button class="btn-eliminar" onclick="eliminar(${deuda.id})">🗑️ Eliminar</button>
+          </div>
         </div>
       `;
       lista.appendChild(div);
     });
 
-    document.getElementById('total').innerText = "Total adeudado: $" + total;
+    document.getElementById('total').innerText = "Total adeudado general: $" + total;
   }
 
-  // 3. AGREGAR O ACTUALIZAR DEUDA EN INDEXEDDB
+  // 3. AGREGAR / ACTUALIZAR DEUDA
   async function agregarDeuda() {
     const nombreInput = document.getElementById('nombre');
     const cantidadInput = document.getElementById('cantidad');
@@ -178,7 +252,6 @@
     const descripcion = descripcionInput.value.trim();
 
     if (nombre && !isNaN(cantidad)) {
-      // Buscar si el deudor ya existe en IndexedDB
       const deudaExistente = await db.deudas.where('nombre').equalsIgnoreCase(nombre).first();
 
       if (deudaExistente) {
@@ -198,11 +271,10 @@
           });
         }
       } else {
-        // Guardar nuevo registro
         await db.deudas.add({ nombre, cantidad, fecha, descripcion });
       }
 
-      // Limpiar formulario
+      // Limpiar inputs
       nombreInput.value = '';
       cantidadInput.value = '';
       descripcionInput.value = '';
@@ -210,11 +282,31 @@
 
       renderDeudas();
     } else {
-      alert("Por favor ingresa al menos Nombre y Cantidad.");
+      alert("Por favor ingresa Nombre y Cantidad.");
     }
   }
 
-  // 4. MODIFICAR CANTIDAD
+  // 4. FUNCIÓN PARA GENERAR Y ENVIAR EL MENSAJE DE COBRO
+  async function enviarCobro(id) {
+    const deuda = await db.deudas.get(id);
+    if (!deuda) return;
+
+    // Redacción del mensaje de cobro
+    const texto = `Hola ${deuda.nombre}, espero que te encuentres muy bien. 👋\n\n` +
+      `Te escribo para hacer un recordatorio cordial sobre la deuda pendiente registrada:\n\n` +
+      `📅 *Fecha:* ${deuda.fecha || 'No especificada'}\n` +
+      `📝 *Detalle:* ${deuda.descripcion || 'Sin descripción'}\n` +
+      `💰 *Monto total:* $${deuda.cantidad}\n\n` +
+      `Agradezco mucho tu apoyo con el pago oportuno cuando te sea posible. ¡Muchas gracias!`;
+
+    // Codificar texto para formato URL
+    const mensajeURL = encodeURIComponent(texto);
+
+    // Abre WhatsApp con el texto preparado (el usuario solo debe seleccionar el contacto)
+    window.open(`https://api.whatsapp.com/send?text=${mensajeURL}`, '_blank');
+  }
+
+  // 5. MODIFICAR CANTIDAD
   async function modificar(id, cantidadAjuste) {
     const cantidad = parseInt(cantidadAjuste);
     if (!isNaN(cantidad)) {
@@ -231,16 +323,17 @@
     }
   }
 
-  // 5. ELIMINAR DEUDA
+  // 6. ELIMINAR DEUDA
   async function eliminar(id) {
-    await db.deudas.delete(id);
-    renderDeudas();
+    if (confirm("¿Seguro que deseas eliminar este registro?")) {
+      await db.deudas.delete(id);
+      renderDeudas();
+    }
   }
 
-  // 6. EXPORTAR DATOS DE INDEXEDDB A JSON
+  // 7. EXPORTAR A JSON
   async function exportarJSON() {
     const todosLosDatos = await db.deudas.toArray();
-
     if (todosLosDatos.length === 0) {
       alert("No hay datos para exportar.");
       return;
@@ -255,13 +348,13 @@
     downloadAnchor.remove();
   }
 
-  // 7. IMPORTAR ARCHIVO JSON A INDEXEDDB
+  // 8. IMPORTAR DESDE JSON
   function importarJSON() {
     const inputArchivo = document.getElementById('archivoImportar');
     const archivo = inputArchivo.files[0];
 
     if (!archivo) {
-      alert("Por favor selecciona un archivo .json primero.");
+      alert("Selecciona un archivo .json primero.");
       return;
     }
 
@@ -271,21 +364,18 @@
         const deudasImportadas = JSON.parse(e.target.result);
 
         if (Array.isArray(deudasImportadas)) {
-          // Reemplazar o insertar datos
-          await db.deudas.clear(); // Limpia la base de datos actual para evitar duplicados
-          
-          // Ajustamos los objetos para no forzar los IDs antiguos
+          await db.deudas.clear();
           const datosLimpios = deudasImportadas.map(({ id, ...resto }) => resto);
           await db.deudas.bulkAdd(datosLimpios);
 
-          alert("¡Respaldo importado con éxito! ✅");
+          alert("¡Respaldo cargado correctamente! ✅");
           renderDeudas();
-          inputArchivo.value = ''; // Limpiar selector de archivo
+          inputArchivo.value = '';
         } else {
-          alert("El archivo no tiene un formato válido.");
+          alert("El archivo no tiene formato válido.");
         }
       } catch (err) {
-        alert("Error al leer el archivo JSON: " + err.message);
+        alert("Error al leer el archivo: " + err.message);
       }
     };
 
