@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Registro de Deudas</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f3f4f6;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    .form-container {
+      background: white;
+      padding: 15px;
+      border-radius: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-top: 10px;
+      font-weight: bold;
+    }
+    input, textarea {
+      width: 100%;
+      padding: 8px;
+      margin-top: 5px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      box-sizing: border-box;
+      font-family: inherit;
+    }
+    textarea {
+      resize: vertical;
+      height: 60px;
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 15px;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    button:hover { background: #1e40af; }
+
+    .deuda {
+      background: #fff;
+      padding: 12px;
+      margin: 10px 0;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .deuda-info p {
+      margin: 4px 0;
+    }
+
+    .acciones button {
+      background: #dc2626;
+      margin-left: 5px;
+      padding: 8px 12px;
+      width: auto;
+    }
+    .acciones button:hover { background: #b91c1c; }
+
+    #total {
+      font-size: 1.2em;
+      font-weight: bold;
+      margin-top: 15px;
+      text-align: center;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h1>Registro de Deudas</h1>
+
+  <div class="form-container">
+    <label for="nombre">Nombre:</label>
+    <input type="text" id="nombre" placeholder="Ej: María">
+
+    <label for="cantidad">Cantidad ($):</label>
+    <input type="number" id="cantidad" placeholder="Ej: 5000">
+
+    <label for="fecha">Fecha de la deuda:</label>
+    <input type="date" id="fecha">
+
+    <label for="descripcion">Descripción:</label>
+    <textarea id="descripcion" placeholder="Ej: Préstamo para compra de insumos"></textarea>
+
+    <button onclick="agregarDeuda()">Agregar Deuda</button>
+    <button onclick="guardarCambios()" style="background:#059669;">Guardar cambios</button>
+  </div>
+
+  <div id="lista"></div>
+  <div id="total">Total adeudado: $0</div>
+
+<script>
+  // ----- DATOS -----
+  let deudas = JSON.parse(localStorage.getItem('deudas_actual')) || [];
+
+  // Establecer fecha de hoy por defecto en el campo fecha
+  document.getElementById('fecha').valueAsDate = new Date();
+
+  // ----- RENDER PRINCIPAL -----
+  function renderDeudas() {
+    const lista = document.getElementById('lista');
+    lista.innerHTML = '';
+    let total = 0;
+
+    deudas.forEach((deuda, index) => {
+      total += deuda.cantidad;
+      const div = document.createElement('div');
+      div.className = 'deuda';
+      div.innerHTML = `
+        <div class="deuda-info">
+          <strong>${deuda.nombre}</strong> — $${deuda.cantidad}
+          <p><small><b>Fecha:</b> ${deuda.fecha || 'Sin fecha'}</small></p>
+          ${deuda.descripcion ? `<p><small><b>Descripción:</b> ${deuda.descripcion}</small></p>` : ''}
+        </div>
+        <div class="acciones">
+          <button onclick="modificar(${index}, prompt('Ingresa cantidad a ajustar (usa valores negativos si realizó un pago):'))">Modificar</button>
+          <button onclick="eliminar(${index})">Eliminar</button>
+        </div>
+      `;
+      lista.appendChild(div);
+    });
+
+    document.getElementById('total').innerText = "Total adeudado: $" + total;
+  }
+
+  // ----- AGREGAR -----
+  function agregarDeuda() {
+    const nombreInput = document.getElementById('nombre');
+    const cantidadInput = document.getElementById('cantidad');
+    const fechaInput = document.getElementById('fecha');
+    const descripcionInput = document.getElementById('descripcion');
+
+    const nombre = nombreInput.value.trim();
+    const cantidad = parseInt(cantidadInput.value);
+    const fecha = fechaInput.value;
+    const descripcion = descripcionInput.value.trim();
+
+    if (nombre && !isNaN(cantidad)) {
+      let deudaExistente = deudas.find(d => d.nombre.toLowerCase() === nombre.toLowerCase());
+
+      if (deudaExistente) {
+        // Actualizar deuda existente
+        deudaExistente.cantidad += cantidad;
+        deudaExistente.fecha = fecha; // Actualizar con la última fecha
+        if (descripcion) {
+          deudaExistente.descripcion += ` | ${descripcion}`; // Anexar nueva nota
+        }
+        if (deudaExistente.cantidad <= 0) {
+          deudas = deudas.filter(d => d.nombre.toLowerCase() !== nombre.toLowerCase());
+        }
+      } else {
+        // Nueva deuda
+        deudas.push({ nombre, cantidad, fecha, descripcion });
+      }
+
+      // Limpiar formulario
+      nombreInput.value = '';
+      cantidadInput.value = '';
+      descripcionInput.value = '';
+      fechaInput.valueAsDate = new Date();
+
+      renderDeudas();
+    } else {
+      alert("Por favor ingresa al menos un Nombre y una Cantidad válida.");
+    }
+  }
+
+  // ----- MODIFICAR -----
+  function modificar(index, cantidad) {
+    cantidad = parseInt(cantidad);
+    if (!isNaN(cantidad)) {
+      deudas[index].cantidad += cantidad;
+      if (deudas[index].cantidad <= 0) {
+        deudas.splice(index, 1);
+      }
+      renderDeudas();
+    }
+  }
+
+  // ----- ELIMINAR -----
+  function eliminar(index) {
+    deudas.splice(index, 1);
+    renderDeudas();
+  }
+
+  // ----- GUARDAR -----
+  function guardarCambios() {
+    localStorage.setItem('deudas_actual', JSON.stringify(deudas));
+    alert("Cambios guardados con éxito ✅");
+  }
+
+  // Renderizar al cargar la página
+  renderDeudas();
+</script>
+
+</body>
+</html>
