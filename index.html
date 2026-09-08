@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Registro de Deudas</title>
+  <title>Registro de Deudas (IndexedDB)</title>
+  <!-- Cargamos Dexie.js para gestionar IndexedDB fácilmente -->
+  <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -14,7 +16,7 @@
       text-align: center;
       color: #333;
     }
-    .form-container {
+    .form-container, .respaldo-container {
       background: white;
       padding: 15px;
       border-radius: 10px;
@@ -42,7 +44,7 @@
     button {
       width: 100%;
       padding: 10px;
-      margin-top: 15px;
+      margin-top: 12px;
       background: #2563eb;
       color: white;
       border: none;
@@ -51,6 +53,12 @@
       cursor: pointer;
     }
     button:hover { background: #1e40af; }
+
+    .btn-exportar { background: #059669; }
+    .btn-exportar:hover { background: #047857; }
+
+    .btn-importar { background: #d97706; }
+    .btn-importar:hover { background: #b45309; }
 
     .deuda {
       background: #fff;
@@ -63,9 +71,7 @@
       align-items: center;
     }
 
-    .deuda-info p {
-      margin: 4px 0;
-    }
+    .deuda-info p { margin: 4px 0; }
 
     .acciones button {
       background: #dc2626;
@@ -88,6 +94,7 @@
 
   <h1>Registro de Deudas</h1>
 
+  <!-- FORMULARIO DE REGISTRO -->
   <div class="form-container">
     <label for="nombre">Nombre:</label>
     <input type="text" id="nombre" placeholder="Ej: María">
@@ -102,26 +109,42 @@
     <textarea id="descripcion" placeholder="Ej: Préstamo para compra de insumos"></textarea>
 
     <button onclick="agregarDeuda()">Agregar Deuda</button>
-    <button onclick="guardarCambios()" style="background:#059669;">Guardar cambios</button>
+  </div>
+
+  <!-- SECCIÓN DE RESPALDOS (EXPORTAR / IMPORTAR) -->
+  <div class="respaldo-container">
+    <h3>Respaldos de Seguridad</h3>
+    <button class="btn-exportar" onclick="exportarJSON()">Exportar Respaldo (.json)</button>
+    
+    <label for="archivoImportar">Cargar respaldo desde archivo:</label>
+    <input type="file" id="archivoImportar" accept=".json" style="margin-bottom: 10px;">
+    <button class="btn-importar" onclick="importarJSON()">Importar Respaldo</button>
   </div>
 
   <div id="lista"></div>
   <div id="total">Total adeudado: $0</div>
 
 <script>
-  // ----- DATOS -----
-  let deudas = JSON.parse(localStorage.getItem('deudas_actual')) || [];
+  // 1. CONFIGURAR BASE DE DATOS INDEXEDDB CON DEXIE
+  const db = new Dexie("DeudasAppDB");
+  db.version(1).stores({
+    // 'id' es auto-incremental, 'nombre' está indexado para búsquedas
+    deudas: '++id, &nombre, cantidad, fecha, descripcion'
+  });
 
-  // Establecer fecha de hoy por defecto en el campo fecha
+  // Fecha de hoy por defecto
   document.getElementById('fecha').valueAsDate = new Date();
 
-  // ----- RENDER PRINCIPAL -----
-  function renderDeudas() {
+  // 2. RENDERIZAR DEUDAS (Consulta asíncrona a IndexedDB)
+  async function renderDeudas() {
     const lista = document.getElementById('lista');
     lista.innerHTML = '';
     let total = 0;
 
-    deudas.forEach((deuda, index) => {
+    // Obtener todas las deudas ordenadas de IndexedDB
+    const deudas = await db.deudas.toArray();
+
+    deudas.forEach((deuda) => {
       total += deuda.cantidad;
       const div = document.createElement('div');
       div.className = 'deuda';
@@ -132,8 +155,8 @@
           ${deuda.descripcion ? `<p><small><b>Descripción:</b> ${deuda.descripcion}</small></p>` : ''}
         </div>
         <div class="acciones">
-          <button onclick="modificar(${index}, prompt('Ingresa cantidad a ajustar (usa valores negativos si realizó un pago):'))">Modificar</button>
-          <button onclick="eliminar(${index})">Eliminar</button>
+          <button onclick="modificar(${deuda.id}, prompt('Ingresa cantidad a ajustar (usa negativos para pagos):'))">Modificar</button>
+          <button onclick="eliminar(${deuda.id})">Eliminar</button>
         </div>
       `;
       lista.appendChild(div);
@@ -142,8 +165,8 @@
     document.getElementById('total').innerText = "Total adeudado: $" + total;
   }
 
-  // ----- AGREGAR -----
-  function agregarDeuda() {
+  // 3. AGREGAR O ACTUALIZAR DEUDA EN INDEXEDDB
+  async function agregarDeuda() {
     const nombreInput = document.getElementById('nombre');
     const cantidadInput = document.getElementById('cantidad');
     const fechaInput = document.getElementById('fecha');
@@ -155,21 +178,28 @@
     const descripcion = descripcionInput.value.trim();
 
     if (nombre && !isNaN(cantidad)) {
-      let deudaExistente = deudas.find(d => d.nombre.toLowerCase() === nombre.toLowerCase());
+      // Buscar si el deudor ya existe en IndexedDB
+      const deudaExistente = await db.deudas.where('nombre').equalsIgnoreCase(nombre).first();
 
       if (deudaExistente) {
-        // Actualizar deuda existente
-        deudaExistente.cantidad += cantidad;
-        deudaExistente.fecha = fecha; // Actualizar con la última fecha
-        if (descripcion) {
-          deudaExistente.descripcion += ` | ${descripcion}`; // Anexar nueva nota
-        }
-        if (deudaExistente.cantidad <= 0) {
-          deudas = deudas.filter(d => d.nombre.toLowerCase() !== nombre.toLowerCase());
+        const nuevaCantidad = deudaExistente.cantidad + cantidad;
+        
+        if (nuevaCantidad <= 0) {
+          await db.deudas.delete(deudaExistente.id);
+        } else {
+          const nuevaDesc = descripcion 
+            ? `${deudaExistente.descripcion} | ${descripcion}`
+            : deudaExistente.descripcion;
+
+          await db.deudas.update(deudaExistente.id, {
+            cantidad: nuevaCantidad,
+            fecha: fecha,
+            descripcion: nuevaDesc
+          });
         }
       } else {
-        // Nueva deuda
-        deudas.push({ nombre, cantidad, fecha, descripcion });
+        // Guardar nuevo registro
+        await db.deudas.add({ nombre, cantidad, fecha, descripcion });
       }
 
       // Limpiar formulario
@@ -180,35 +210,89 @@
 
       renderDeudas();
     } else {
-      alert("Por favor ingresa al menos un Nombre y una Cantidad válida.");
+      alert("Por favor ingresa al menos Nombre y Cantidad.");
     }
   }
 
-  // ----- MODIFICAR -----
-  function modificar(index, cantidad) {
-    cantidad = parseInt(cantidad);
+  // 4. MODIFICAR CANTIDAD
+  async function modificar(id, cantidadAjuste) {
+    const cantidad = parseInt(cantidadAjuste);
     if (!isNaN(cantidad)) {
-      deudas[index].cantidad += cantidad;
-      if (deudas[index].cantidad <= 0) {
-        deudas.splice(index, 1);
+      const deuda = await db.deudas.get(id);
+      if (deuda) {
+        const nuevaCantidad = deuda.cantidad + cantidad;
+        if (nuevaCantidad <= 0) {
+          await db.deudas.delete(id);
+        } else {
+          await db.deudas.update(id, { cantidad: nuevaCantidad });
+        }
+        renderDeudas();
       }
-      renderDeudas();
     }
   }
 
-  // ----- ELIMINAR -----
-  function eliminar(index) {
-    deudas.splice(index, 1);
+  // 5. ELIMINAR DEUDA
+  async function eliminar(id) {
+    await db.deudas.delete(id);
     renderDeudas();
   }
 
-  // ----- GUARDAR -----
-  function guardarCambios() {
-    localStorage.setItem('deudas_actual', JSON.stringify(deudas));
-    alert("Cambios guardados con éxito ✅");
+  // 6. EXPORTAR DATOS DE INDEXEDDB A JSON
+  async function exportarJSON() {
+    const todosLosDatos = await db.deudas.toArray();
+
+    if (todosLosDatos.length === 0) {
+      alert("No hay datos para exportar.");
+      return;
+    }
+
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(todosLosDatos, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `respaldo_deudas_${new Date().toISOString().slice(0, 10)}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
   }
 
-  // Renderizar al cargar la página
+  // 7. IMPORTAR ARCHIVO JSON A INDEXEDDB
+  function importarJSON() {
+    const inputArchivo = document.getElementById('archivoImportar');
+    const archivo = inputArchivo.files[0];
+
+    if (!archivo) {
+      alert("Por favor selecciona un archivo .json primero.");
+      return;
+    }
+
+    const lector = new FileReader();
+    lector.onload = async function(e) {
+      try {
+        const deudasImportadas = JSON.parse(e.target.result);
+
+        if (Array.isArray(deudasImportadas)) {
+          // Reemplazar o insertar datos
+          await db.deudas.clear(); // Limpia la base de datos actual para evitar duplicados
+          
+          // Ajustamos los objetos para no forzar los IDs antiguos
+          const datosLimpios = deudasImportadas.map(({ id, ...resto }) => resto);
+          await db.deudas.bulkAdd(datosLimpios);
+
+          alert("¡Respaldo importado con éxito! ✅");
+          renderDeudas();
+          inputArchivo.value = ''; // Limpiar selector de archivo
+        } else {
+          alert("El archivo no tiene un formato válido.");
+        }
+      } catch (err) {
+        alert("Error al leer el archivo JSON: " + err.message);
+      }
+    };
+
+    lector.readAsText(archivo);
+  }
+
+  // Carga inicial
   renderDeudas();
 </script>
 
