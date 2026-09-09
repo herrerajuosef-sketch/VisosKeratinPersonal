@@ -214,19 +214,22 @@
     }
   }
 
-  async function enviarCobro(id) {
-    const deuda = await db.deudas.get(id);
-    if (!deuda) return;
+async function enviarCobro(id) {
+  const deuda = await db.deudas.get(id);
+  if (!deuda) return;
 
-    const texto = `Hola ${deuda.nombre}, espero que te encuentres muy bien. 👋\n\n` +
-      `Te escribo para hacer un recordatorio cordial sobre la deuda pendiente registrada:\n\n` +
-      ` *Fecha:* ${deuda.fecha || 'No especificada'}\n` +
-      ` *Detalles:* ${deuda.descripcion || 'Sin descripción'}\n` +
-      `$ *Monto total:* $${deuda.cantidad}\n\n` +
-      `Agradezco mucho tu apoyo con el pago oportuno cuando te sea posible. ¡Muchas gracias!`;
+  const texto = `Hola ${deuda.nombre}, espero que te encuentres muy bien. 👋\n\n` +
+    `Te escribo para hacer un recordatorio cordial sobre la deuda pendiente registrada:\n\n` +
+    `📅 *Fecha:* ${deuda.fecha || 'No especificada'}\n` +
+    `📝 *Detalle:* ${deuda.descripcion || 'Sin descripción'}\n` +
+    `💰 *Monto total:* $${deuda.cantidad}\n\n` +
+    `Agradezco mucho tu apoyo con el pago oportuno cuando te sea posible. ¡Muchas gracias!`;
 
-    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(texto)}`, '_blank');
-  }
+  const mensajeURL = encodeURIComponent(texto);
+
+  // Usa el esquema nativo que activa el selector de aplicaciones (WhatsApp o WhatsApp Business)
+  window.location.href = `whatsapp://send?text=${mensajeURL}`;
+}
 
   async function modificar(id, cantidadAjuste) {
     const cantidad = parseInt(cantidadAjuste);
