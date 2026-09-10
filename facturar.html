@@ -61,16 +61,17 @@
     button {
       width: 100%;
       padding: 13px;
-      margin-top: 14px;
-      background: #059669;
-      color: white;
+      margin-top: 10px;
       border: none;
       border-radius: 8px;
       font-size: 0.95rem;
       font-weight: bold;
       cursor: pointer;
+      color: white;
     }
-    button.btn-add { background: #2563eb; margin-top: 8px; padding: 10px; }
+    .btn-add { background: #2563eb; }
+    .btn-wa { background: #25D366; }
+    .btn-solo-guardar { background: #4b5563; }
     button:active { transform: scale(0.98); }
 
     .item-factura {
@@ -94,6 +95,7 @@
       padding: 12px;
       border-radius: 8px;
       margin-top: 14px;
+      margin-bottom: 6px;
     }
   </style>
 </head>
@@ -112,7 +114,7 @@
 
     <div class="grid-2">
       <div>
-        <label for="clienteTel">Teléfono:</label>
+        <label for="clienteTel">WhatsApp / Teléfono:</label>
         <input type="tel" id="clienteTel" placeholder="Ej: 3001234567">
       </div>
       <div>
@@ -139,7 +141,9 @@
       Total: $<span id="montoTotal">0</span>
     </div>
 
-    <button onclick="generarFactura()">✅ Registrar y Descontar Stock</button>
+    <!-- BOTONES DE ACCIÓN -->
+    <button class="btn-wa" onclick="procesarFactura(true)">📲 Registrar y Enviar por WhatsApp</button>
+    <button class="btn-solo-guardar" onclick="procesarFactura(false)">💾 Solo Registrar Venta</button>
   </div>
 
 <script>
@@ -152,7 +156,6 @@
   let productosInventario = [];
   let carrito = [];
 
-  // Asignar fecha de hoy por defecto
   document.getElementById("fechaCompra").value = new Date().toISOString().split('T')[0];
 
   async function cargarInventario() {
@@ -184,11 +187,10 @@
     if (!producto) return;
 
     if (cantidad > producto.cantidad) {
-      alert(`Stock insuficiente. Solo quedan ${producto.cantidad} unidades de ${producto.nombre}.`);
+      alert(`Stock insuficiente. Quedan ${producto.cantidad} unidades de ${producto.nombre}.`);
       return;
     }
 
-    // Verificar si ya está en el carrito
     const existe = carrito.find(item => item.id === productoId);
     if (existe) {
       if (existe.cantidad + cantidad > producto.cantidad) {
@@ -237,7 +239,7 @@
     document.getElementById("montoTotal").innerText = total;
   }
 
-  async function generarFactura() {
+  async function procesarFactura(enviarWhatsApp) {
     const nombre = document.getElementById("clienteNombre").value.trim();
     const telefono = document.getElementById("clienteTel").value.trim();
     const fecha = document.getElementById("fechaCompra").value;
@@ -252,7 +254,15 @@
       return;
     }
 
-    // Descontar del inventario en la base de datos
+    if (enviarWhatsApp && !telefono) {
+      alert("Debes ingresar un número de teléfono para enviar por WhatsApp.");
+      return;
+    }
+
+    // 1. Descontar stock del inventario
+    let detalleTexto = "";
+    let total = 0;
+
     for (const item of carrito) {
       const prod = await db.productos.get(item.id);
       if (prod) {
@@ -261,10 +271,31 @@
           vendidos: prod.vendidos + item.cantidad
         });
       }
+      detalleTexto += `• ${item.nombre} x${item.cantidad} - $${item.subtotal}\n`;
+      total += item.subtotal;
     }
 
-    alert("¡Factura registrada e inventario actualizado correctamente! ✅");
-    window.location.href = "inventario.html";
+    // 2. Enviar por WhatsApp si fue seleccionado
+    if (enviarWhatsApp) {
+      // Limpiar prefijos de teléfono si se escribieron con espacios
+      let numLimpio = telefono.replace(/\D/g, '');
+      
+      const mensaje = `💅 *COMPROBANTE DE COMPRA*\n` +
+        `*Salón de Belleza*\n\n` +
+        `👤 *Cliente:* ${nombre}\n` +
+        `📅 *Fecha:* ${fecha}\n\n` +
+        `🛍️ *Detalle de Productos:*\n${detalleTexto}\n` +
+        `💰 *TOTAL PAGADO:* $${total}\n\n` +
+        `¡Muchas gracias por tu compra y preferencia! ✨`;
+
+      const mensajeURL = encodeURIComponent(mensaje);
+      
+      // Abre selector de WhatsApp/WhatsApp Business usando el esquema nativo
+      window.location.href = `whatsapp://send?phone=${numLimpio}&text=${mensajeURL}`;
+    } else {
+      alert("¡Factura registrada e inventario actualizado correctamente! ✅");
+      window.location.href = "inventario.html";
+    }
   }
 
   cargarInventario();

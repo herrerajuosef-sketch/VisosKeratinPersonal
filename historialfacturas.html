@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Historial de Facturas</title>
+  <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #f3f4f6;
+      padding: 12px;
+      margin: 0;
+    }
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    h1 { color: #1f2937; font-size: 1.3rem; margin: 0; }
+    .btn-link {
+      background: #4b5563;
+      color: white;
+      text-decoration: none;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: bold;
+    }
+    .card {
+      background: white;
+      padding: 14px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      margin-bottom: 12px;
+    }
+    input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      margin-bottom: 10px;
+    }
+    .factura-card {
+      background: white;
+      padding: 14px;
+      border-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+      margin-bottom: 12px;
+      border-left: 4px solid #10b981;
+    }
+    .factura-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #f3f4f6;
+      padding-bottom: 6px;
+      margin-bottom: 8px;
+    }
+    .cliente-nombre { font-size: 1rem; font-weight: bold; color: #111827; }
+    .factura-fecha { font-size: 0.8rem; color: #6b7280; }
+    .detalles-lista {
+      font-size: 0.88rem;
+      color: #374151;
+      margin: 8px 0;
+      padding-left: 18px;
+    }
+    .monto-total {
+      font-size: 1rem;
+      font-weight: bold;
+      color: #059669;
+      text-align: right;
+      margin-top: 6px;
+    }
+    .btn-wa-reenviar {
+      background: #25D366;
+      color: white;
+      border: none;
+      padding: 8px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: bold;
+      width: 100%;
+      margin-top: 8px;
+      cursor: pointer;
+    }
+    .resumen-global {
+      background: #1e293b;
+      color: white;
+      padding: 12px;
+      border-radius: 10px;
+      text-align: center;
+      font-weight: bold;
+      margin-bottom: 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header-bar">
+    <h1>📚 Historial Facturas</h1>
+    <a href="index.html" class="btn-link">⬅️ Inicio</a>
+  </div>
+
+  <div class="resumen-global">
+    Facturado Total: $<span id="totalAcumulado">0</span>
+  </div>
+
+  <div class="card">
+    <input type="text" id="buscador" placeholder="🔍 Buscar por nombre de cliente..." oninput="filtrarFacturas()">
+  </div>
+
+  <div id="listaFacturas"></div>
+
+<script>
+  // Configuración de la base de datos (Versión 3 incluye la tabla de facturas)
+  const db = new Dexie("DeudasAppDB");
+  db.version(3).stores({
+    deudas: '++id, &nombre, cantidad, fecha, descripcion',
+    productos: '++id, &nombre, precioCompra, precioVenta, cantidad, vendidos',
+    facturas: '++id, clienteNombre, clienteTel, fecha, productos, total'
+  });
+
+  let todasLasFacturas = [];
+
+  async function cargarHistorial() {
+    todasLasFacturas = await db.facturas.reverse().toArray();
+    renderFacturas(todasLasFacturas);
+  }
+
+  function renderFacturas(lista) {
+    const contenedor = document.getElementById("listaFacturas");
+    contenedor.innerHTML = "";
+    let totalGeneral = 0;
+
+    if (lista.length === 0) {
+      contenedor.innerHTML = "<p style='text-align:center; color:#6b7280;'>No hay facturas registradas.</p>";
+      document.getElementById("totalAcumulado").innerText = "0";
+      return;
+    }
+
+    lista.forEach(f => {
+      totalGeneral += f.total;
+
+      const itemsHTML = f.productos.map(p => `<li>${p.nombre} x${p.cantidad} - $${p.subtotal}</li>`).join('');
+
+      const card = document.createElement("div");
+      card.className = "factura-card";
+      card.innerHTML = `
+        <div class="factura-header">
+          <span class="cliente-nombre">👤 ${f.clienteNombre}</span>
+          <span class="factura-fecha">📅 ${f.fecha}</span>
+        </div>
+        <p style="margin:2px 0; font-size:0.85rem; color:#6b7280;">📞 Teléfono: ${f.clienteTel || 'No registrado'}</p>
+        <ul class="detalles-lista">${itemsHTML}</ul>
+        <div class="monto-total">Total: $${f.total}</div>
+        ${f.clienteTel ? `<button class="btn-wa-reenviar" onclick="reenviarWA('${f.clienteNombre}', '${f.clienteTel}', '${f.fecha}', '${encodeURIComponent(JSON.stringify(f.productos))}', ${f.total})">📲 Reenviar por WhatsApp</button>` : ''}
+      `;
+      contenedor.appendChild(card);
+    });
+
+    document.getElementById("totalAcumulado").innerText = totalGeneral;
+  }
+
+  function filtrarFacturas() {
+    const texto = document.getElementById("buscador").value.toLowerCase();
+    const filtradas = todasLasFacturas.filter(f => f.clienteNombre.toLowerCase().includes(texto));
+    renderFacturas(filtradas);
+  }
+
+  function reenviarWA(nombre, telefono, fecha, productosJSON, total) {
+    const productos = JSON.parse(decodeURIComponent(productosJSON));
+    let detalleTexto = productos.map(p => `• ${p.nombre} x${p.cantidad} - $${p.subtotal}`).join('\n');
+    let numLimpio = telefono.replace(/\D/g, '');
+
+    const mensaje = `💅 *COMPROBANTE DE COMPRA*\n` +
+      `*Salón de Belleza*\n\n` +
+      `👤 *Cliente:* ${nombre}\n` +
+      `📅 *Fecha:* ${fecha}\n\n` +
+      `🛍️ *Detalle de Productos:*\n${detalleTexto}\n\n` +
+      `💰 *TOTAL PAGADO:* $${total}\n\n` +
+      `¡Muchas gracias por tu compra y preferencia! ✨`;
+
+    window.location.href = `whatsapp://send?phone=${numLimpio}&text=${encodeURIComponent(mensaje)}`;
+  }
+
+  cargarHistorial();
+</script>
+
+</body>
+</html>
