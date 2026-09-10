@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Inventario - Salón de Belleza</title>
+  <!-- Dexie.js para IndexedDB -->
+  <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #f3f4f6;
+      padding: 12px;
+      margin: 0;
+    }
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    h1 { color: #1f2937; font-size: 1.3rem; margin: 0; }
+    .btn-link {
+      background: #4b5563;
+      color: white;
+      text-decoration: none;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: bold;
+    }
+    .card {
+      background: white;
+      padding: 16px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      margin-bottom: 16px;
+    }
+    label {
+      display: block;
+      margin-top: 10px;
+      font-weight: 600;
+      color: #374151;
+      font-size: 0.88rem;
+    }
+    input {
+      width: 100%;
+      padding: 11px;
+      margin-top: 4px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-family: inherit;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    button {
+      width: 100%;
+      padding: 13px;
+      margin-top: 14px;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    button:active { transform: scale(0.98); }
+
+    /* Estilos de productos */
+    .producto-card {
+      background: #fff;
+      padding: 14px;
+      margin: 10px 0;
+      border-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .producto-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #f3f4f6;
+      padding-bottom: 6px;
+    }
+    .producto-nombre { font-size: 1.05rem; font-weight: bold; color: #111827; }
+    .producto-stock {
+      background: #e0e7ff;
+      color: #3730a3;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: bold;
+    }
+    .producto-detalles { font-size: 0.85rem; color: #4b5563; }
+    
+    .acciones-producto {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .btn-vender { background: #059669; margin: 0; padding: 10px; flex: 2; }
+    .btn-eliminar { background: #dc2626; margin: 0; padding: 10px; flex: 1; }
+
+    #resumen {
+      font-size: 1.1em;
+      font-weight: bold;
+      text-align: center;
+      background: #1e293b;
+      color: white;
+      padding: 14px;
+      border-radius: 10px;
+      margin-top: 16px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header-bar">
+    <h1>💅 Inventario de Belleza</h1>
+    <a href="index.html" class="btn-link">⬅️ Inicio</a>
+  </div>
+
+  <!-- REGISTRAR PRODUCTO -->
+  <div class="card">
+    <h3 style="margin-top:0;">➕ Agregar Producto / Insumo</h3>
+    
+    <label for="nombre">Nombre del producto:</label>
+    <input type="text" id="nombre" placeholder="Ej: Esmalte Semipermanente, Tinte #6">
+
+    <div class="grid-2">
+      <div>
+        <label for="precioCompra">Costo compra ($):</label>
+        <input type="number" id="precioCompra" placeholder="Ej: 12000">
+      </div>
+      <div>
+        <label for="precioVenta">Precio venta ($):</label>
+        <input type="number" id="precioVenta" placeholder="Ej: 20000">
+      </div>
+    </div>
+
+    <label for="cantidad">Cantidad inicial:</label>
+    <input type="number" id="cantidad" placeholder="Ej: 5">
+
+    <button onclick="guardarProducto()">💾 Registrar Producto</button>
+  </div>
+
+  <!-- LISTA DE PRODUCTOS -->
+  <div id="listaProductos"></div>
+
+  <!-- RESUMEN DE VENTAS -->
+  <div id="resumen">Ventas Totales: $0</div>
+
+<script>
+  // Base de datos en IndexedDB
+  const db = new Dexie("DeudasAppDB");
+  db.version(2).stores({
+    deudas: '++id, &nombre, cantidad, fecha, descripcion',
+    productos: '++id, &nombre, precioCompra, precioVenta, cantidad, vendidos'
+  });
+
+  // Renderizar inventario
+  async function renderInventario() {
+    const lista = document.getElementById("listaProductos");
+    lista.innerHTML = "";
+
+    let ventasTotales = 0;
+    const productos = await db.productos.toArray();
+
+    productos.forEach((p) => {
+      ventasTotales += p.vendidos * p.precioVenta;
+
+      const card = document.createElement("div");
+      card.className = "producto-card";
+      card.innerHTML = `
+        <div class="producto-header">
+          <span class="producto-nombre">${p.nombre}</span>
+          <span class="producto-stock">Stock: ${p.cantidad}</span>
+        </div>
+        <div class="producto-detalles">
+          <p style="margin:2px 0;"><b>Costo:</b> $${p.precioCompra} | <b>Venta/Servicio:</b> $${p.precioVenta}</p>
+          <p style="margin:2px 0;"><b>Unidades Usadas / Vendidas:</b> ${p.vendidos}</p>
+        </div>
+        <div class="acciones-producto">
+          <button class="btn-vender" onclick="venderOUsar(${p.id})">✂️ Usar / Vender 1</button>
+          <button class="btn-eliminar" onclick="eliminarProducto(${p.id})">🗑️</button>
+        </div>
+      `;
+      lista.appendChild(card);
+    });
+
+    document.getElementById("resumen").innerText = "Ventas Totales: $" + ventasTotales;
+  }
+
+  // Guardar un nuevo producto
+  async function guardarProducto() {
+    const nombreInput = document.getElementById("nombre");
+    const compraInput = document.getElementById("precioCompra");
+    const ventaInput = document.getElementById("precioVenta");
+    const cantidadInput = document.getElementById("cantidad");
+
+    const nombre = nombreInput.value.trim();
+    const precioCompra = Number(compraInput.value);
+    const precioVenta = Number(ventaInput.value);
+    const cantidad = Number(cantidadInput.value);
+
+    if (nombre && cantidad > 0 && !isNaN(precioCompra) && !isNaN(precioVenta)) {
+      const productoExistente = await db.productos.where('nombre').equalsIgnoreCase(nombre).first();
+
+      if (productoExistente) {
+        await db.productos.update(productoExistente.id, {
+          cantidad: productoExistente.cantidad + cantidad,
+          precioCompra: precioCompra,
+          precioVenta: precioVenta
+        });
+      } else {
+        await db.productos.add({
+          nombre,
+          precioCompra,
+          precioVenta,
+          cantidad,
+          vendidos: 0
+        });
+      }
+
+      // Limpiar campos
+      nombreInput.value = "";
+      compraInput.value = "";
+      ventaInput.value = "";
+      cantidadInput.value = "";
+
+      renderInventario();
+    } else {
+      alert("Por favor completa todos los campos con valores válidos.");
+    }
+  }
+
+  // Registrar venta o uso de 1 unidad
+  async function venderOUsar(id) {
+    const producto = await db.productos.get(id);
+    if (producto && producto.cantidad > 0) {
+      await db.productos.update(id, {
+        cantidad: producto.cantidad - 1,
+        vendidos: producto.vendidos + 1
+      });
+      renderInventario();
+    } else {
+      alert("No hay stock suficiente de este producto.");
+    }
+  }
+
+  // Eliminar producto
+  async function eliminarProducto(id) {
+    if (confirm("¿Seguro que deseas eliminar este producto del inventario?")) {
+      await db.productos.delete(id);
+      renderInventario();
+    }
+  }
+
+  renderInventario();
+</script>
+
+</body>
+</html>
