@@ -53,54 +53,63 @@
     }
     .btn-exportar { background: #059669; }
     .label-file { background: #d97706; }
-    input[type="file"] { display: none; } /* Oculto para usar diseño táctil */
+    input[type="file"] { display: none; }
   </style>
 </head>
 <body>
 
   <div class="header-bar">
     <h1>⚙️ Respaldos de Seguridad</h1>
-    <a href="index.html" class="btn-link">⬅️ Volver</a>
+    <a href="index.html" class="btn-link">⬅️ Inicio</a>
   </div>
 
   <div class="card">
     <h3>Descargar Copia de Seguridad</h3>
-    <p>Exporta un archivo <code>.json</code> con todas tus deudas actuales para guardarlo en tu teléfono o enviarlo a otro dispositivo.</p>
-    <button class="btn-exportar" onclick="exportarJSON()">📥 Descargar Respaldo</button>
+    <p>Guarda un archivo <code>.json</code> con tus <b>deudas e inventario</b> juntos para proteger tus datos.</p>
+    <button class="btn-exportar" onclick="exportarJSON()">📥 Descargar Respaldo Completo</button>
   </div>
 
   <div class="card">
     <h3>Restaurar desde Respaldo</h3>
-    <p>Selecciona un archivo <code>.json</code> guardado previamente. <b>Atención:</b> esto reemplazará los datos actuales por los del archivo.</p>
+    <p>Carga un archivo <code>.json</code> guardado. <b>Atención:</b> reemplazará los datos actuales.</p>
     
-    <!-- Botón directo de carga táctil -->
     <label for="archivoImportar" class="label-file">📤 Seleccionar Archivo JSON</label>
     <input type="file" id="archivoImportar" accept=".json" onchange="importarJSONAuto(this)">
   </div>
 
 <script>
+  // Configuración compartida de IndexedDB (Versión 2 con Deudas y Productos)
   const db = new Dexie("DeudasAppDB");
-  db.version(1).stores({
-    deudas: '++id, &nombre, cantidad, fecha, descripcion'
+  db.version(2).stores({
+    deudas: '++id, &nombre, cantidad, fecha, descripcion',
+    productos: '++id, &nombre, precioCompra, precioVenta, cantidad, vendidos'
   });
 
+  // Exporta Deudas + Productos en un único archivo
   async function exportarJSON() {
-    const todosLosDatos = await db.deudas.toArray();
-    if (todosLosDatos.length === 0) {
-      alert("No hay deudas registradas para exportar.");
+    const deudas = await db.deudas.toArray();
+    const productos = await db.productos.toArray();
+
+    if (deudas.length === 0 && productos.length === 0) {
+      alert("No hay datos registrados para exportar.");
       return;
     }
 
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(todosLosDatos, null, 2));
+    const copiaCompleta = {
+      deudas: deudas,
+      productos: productos
+    };
+
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(copiaCompleta, null, 2));
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `respaldo_deudas_${new Date().toISOString().slice(0, 10)}.json`);
+    downloadAnchor.setAttribute("download", `respaldo_salon_${new Date().toISOString().slice(0, 10)}.json`);
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
   }
 
-  // Carga automática al seleccionar el archivo en Android/iOS
+  // Importa y restaura ambas tablas
   function importarJSONAuto(inputElement) {
     const archivo = inputElement.files[0];
     if (!archivo) return;
@@ -108,22 +117,29 @@
     const lector = new FileReader();
     lector.onload = async function(e) {
       try {
-        const deudasImportadas = JSON.parse(e.target.result);
+        const datos = JSON.parse(e.target.result);
 
-        if (Array.isArray(deudasImportadas)) {
-          if (confirm("¿Estás seguro de restaurar este respaldo? Reemplazará la lista actual.")) {
-            await db.deudas.clear();
-            const datosLimpios = deudasImportadas.map(({ id, ...resto }) => resto);
-            await db.deudas.bulkAdd(datosLimpios);
+        if (datos.deudas || datos.productos) {
+          if (confirm("¿Deseas restaurar este respaldo? Reemplazará los datos actuales del sistema.")) {
+            if (datos.deudas) {
+              await db.deudas.clear();
+              const deudasLimpias = datos.deudas.map(({ id, ...resto }) => resto);
+              await db.deudas.bulkAdd(deudasLimpias);
+            }
+            if (datos.productos) {
+              await db.productos.clear();
+              const productosLimpios = datos.productos.map(({ id, ...resto }) => resto);
+              await db.productos.bulkAdd(productosLimpios);
+            }
 
-            alert("¡Respaldo restaurado con éxito! ✅");
-            window.location.href = "index.html"; // Redirige al inicio para ver los cambios
+            alert("¡Sistema restaurado correctamente! ✅");
+            window.location.href = "index.html";
           }
         } else {
-          alert("El archivo no tiene una estructura de datos válida.");
+          alert("El archivo cargado no contiene un formato de respaldo válido.");
         }
       } catch (err) {
-        alert("Error al leer el archivo JSON: " + err.message);
+        alert("Error al procesar el archivo: " + err.message);
       }
     };
 
