@@ -16,66 +16,34 @@
       align-items: center;
       min-height: 100vh;
     }
-    .container {
-      width: 100%;
-      max-width: 400px;
-    }
-    h1 {
-      text-align: center;
-      color: #1f2937;
-      font-size: 1.6rem;
-      margin-bottom: 8px;
-    }
-    p.subtitle {
-      text-align: center;
-      color: #6b7280;
-      font-size: 0.95rem;
-      margin-top: 0;
-      margin-bottom: 28px;
-    }
-    .menu-grid {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
+    .container { width: 100%; max-width: 400px; }
+    h1 { text-align: center; color: #1f2937; font-size: 1.6rem; margin-bottom: 4px; }
+    p.subtitle { text-align: center; color: #6b7280; font-size: 0.95rem; margin-top: 0; margin-bottom: 24px; }
+    .menu-grid { display: flex; flex-direction: column; gap: 14px; }
     .btn-menu {
       display: flex;
       align-items: center;
       gap: 16px;
       background: white;
-      padding: 18px 20px;
+      padding: 16px 18px;
       border-radius: 14px;
       text-decoration: none;
       color: #111827;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.06);
-      transition: transform 0.1s ease;
+      box-shadow: 0 3px 8px rgba(0,0,0,0.06);
     }
-    .btn-menu:active {
-      transform: scale(0.97);
-    }
+    .btn-menu:active { transform: scale(0.98); }
     .btn-icon {
-      font-size: 2rem;
-      width: 48px;
-      height: 48px;
+      font-size: 1.8rem;
+      width: 46px;
+      height: 46px;
       display: flex;
       align-items: center;
       justify-content: center;
       background: #f3f4f6;
       border-radius: 12px;
     }
-    .btn-text {
-      display: flex;
-      flex-direction: column;
-    }
-    .btn-title {
-      font-size: 1.1rem;
-      font-weight: bold;
-    }
-    .btn-desc {
-      font-size: 0.85rem;
-      color: #6b7280;
-      margin-top: 2px;
-    }
+    .btn-title { font-size: 1.05rem; font-weight: bold; }
+    .btn-desc { font-size: 0.82rem; color: #6b7280; margin-top: 2px; }
   </style>
 </head>
 <body>
@@ -85,30 +53,39 @@
     <p class="subtitle">Panel de Control General</p>
 
     <div class="menu-grid">
-      <!-- BOTÓN REGISTRO DE DEUDAS -->
-      <a href="deudas.html" class="btn-menu">
-        <div class="btn-icon">📋</div>
+      <!-- FACTURACIÓN -->
+      <a href="facturar.html" class="btn-menu">
+        <div class="btn-icon">🧾</div>
         <div class="btn-text">
-          <span class="btn-title">Registro de Deudas</span>
-          <span class="btn-desc">Gestiona cobros y envía mensajes</span>
+          <div class="btn-title">Facturar Venta</div>
+          <div class="btn-desc">Registrar compras y descontar stock</div>
         </div>
       </a>
 
-      <!-- BOTÓN INVENTARIO -->
+      <!-- INVENTARIO -->
       <a href="inventario.html" class="btn-menu">
         <div class="btn-icon">💄</div>
         <div class="btn-text">
-          <span class="btn-title">Inventario y Productos</span>
-          <span class="btn-desc">Control de stock y ventas de insumos</span>
+          <div class="btn-title">Inventario y Stock</div>
+          <div class="btn-desc">Ver catálogo y registrar compras de insumos</div>
         </div>
       </a>
 
-      <!-- BOTÓN RESPALDOS -->
+      <!-- DEUDAS -->
+      <a href="deudas.html" class="btn-menu">
+        <div class="btn-icon">📋</div>
+        <div class="btn-text">
+          <div class="btn-title">Registro de Deudas</div>
+          <div class="btn-desc">Gestiona cobros y envía recordatorios</div>
+        </div>
+      </a>
+
+      <!-- RESPALDOS -->
       <a href="respaldos.html" class="btn-menu">
         <div class="btn-icon">⚙️</div>
         <div class="btn-text">
-          <span class="btn-title">Respaldos de Seguridad</span>
-          <span class="btn-desc">Exportar e importar archivos .json</span>
+          <div class="btn-title">Respaldos de Seguridad</div>
+          <div class="btn-desc">Exportar e importar archivos .json</div>
         </div>
       </a>
     </div>

@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Inventario - Salón de Belleza</title>
-  <!-- Dexie.js para IndexedDB -->
   <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script>
   <style>
     * { box-sizing: border-box; }
@@ -70,25 +69,18 @@
       font-weight: bold;
       cursor: pointer;
     }
-    button:active { transform: scale(0.98); }
 
-    /* Estilos de productos */
     .producto-card {
       background: #fff;
       padding: 14px;
       margin: 10px 0;
       border-radius: 12px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.06);
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
     }
     .producto-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      border-bottom: 1px solid #f3f4f6;
-      padding-bottom: 6px;
     }
     .producto-nombre { font-size: 1.05rem; font-weight: bold; color: #111827; }
     .producto-stock {
@@ -99,32 +91,13 @@
       font-size: 0.85rem;
       font-weight: bold;
     }
-    .producto-detalles { font-size: 0.85rem; color: #4b5563; }
-    
-    .acciones-producto {
-      display: flex;
-      gap: 8px;
-      margin-top: 4px;
-    }
-    .btn-vender { background: #059669; margin: 0; padding: 10px; flex: 2; }
-    .btn-eliminar { background: #dc2626; margin: 0; padding: 10px; flex: 1; }
-
-    #resumen {
-      font-size: 1.1em;
-      font-weight: bold;
-      text-align: center;
-      background: #1e293b;
-      color: white;
-      padding: 14px;
-      border-radius: 10px;
-      margin-top: 16px;
-    }
+    .producto-detalles { font-size: 0.85rem; color: #4b5563; margin-top: 6px; }
   </style>
 </head>
 <body>
 
   <div class="header-bar">
-    <h1>💅 Inventario de Belleza</h1>
+    <h1>💄 Inventario Digital</h1>
     <a href="index.html" class="btn-link">⬅️ Inicio</a>
   </div>
 
@@ -133,50 +106,48 @@
     <h3 style="margin-top:0;">➕ Agregar Producto / Insumo</h3>
     
     <label for="nombre">Nombre del producto:</label>
-    <input type="text" id="nombre" placeholder="Ej: Esmalte Semipermanente, Tinte #6">
+    <input type="text" id="nombre" placeholder="Ej: Esmalte Semipermanente">
 
     <div class="grid-2">
       <div>
         <label for="precioCompra">Costo compra ($):</label>
-        <input type="number" id="precioCompra" placeholder="Ej: 12000">
+        <input type="number" id="precioCompra" placeholder="12000">
       </div>
       <div>
         <label for="precioVenta">Precio venta ($):</label>
-        <input type="number" id="precioVenta" placeholder="Ej: 20000">
+        <input type="number" id="precioVenta" placeholder="20000">
       </div>
     </div>
 
-    <label for="cantidad">Cantidad inicial:</label>
-    <input type="number" id="cantidad" placeholder="Ej: 5">
+    <label for="cantidad">Cantidad a ingresar:</label>
+    <input type="number" id="cantidad" placeholder="5">
 
-    <button onclick="guardarProducto()">💾 Registrar Producto</button>
+    <button onclick="guardarProducto()">💾 Registrar en Inventario</button>
   </div>
 
-  <!-- LISTA DE PRODUCTOS -->
+  <h3 style="color: #374151; margin-bottom: 8px;">📦 Stock Disponible</h3>
+  <!-- LISTA DE PRODUCTOS (SOLO LECTURA DE STOCK) -->
   <div id="listaProductos"></div>
 
-  <!-- RESUMEN DE VENTAS -->
-  <div id="resumen">Ventas Totales: $0</div>
-
 <script>
-  // Base de datos en IndexedDB
   const db = new Dexie("DeudasAppDB");
   db.version(2).stores({
     deudas: '++id, &nombre, cantidad, fecha, descripcion',
     productos: '++id, &nombre, precioCompra, precioVenta, cantidad, vendidos'
   });
 
-  // Renderizar inventario
   async function renderInventario() {
     const lista = document.getElementById("listaProductos");
     lista.innerHTML = "";
 
-    let ventasTotales = 0;
     const productos = await db.productos.toArray();
 
-    productos.forEach((p) => {
-      ventasTotales += p.vendidos * p.precioVenta;
+    if (productos.length === 0) {
+      lista.innerHTML = "<p style='color:#6b7280; text-align:center;'>No hay productos registrados.</p>";
+      return;
+    }
 
+    productos.forEach((p) => {
       const card = document.createElement("div");
       card.className = "producto-card";
       card.innerHTML = `
@@ -185,21 +156,14 @@
           <span class="producto-stock">Stock: ${p.cantidad}</span>
         </div>
         <div class="producto-detalles">
-          <p style="margin:2px 0;"><b>Costo:</b> $${p.precioCompra} | <b>Venta/Servicio:</b> $${p.precioVenta}</p>
-          <p style="margin:2px 0;"><b>Unidades Usadas / Vendidas:</b> ${p.vendidos}</p>
-        </div>
-        <div class="acciones-producto">
-          <button class="btn-vender" onclick="venderOUsar(${p.id})">✂️ Usar / Vender 1</button>
-          <button class="btn-eliminar" onclick="eliminarProducto(${p.id})">🗑️</button>
+          <p style="margin:2px 0;"><b>Costo:</b> $${p.precioCompra} | <b>Precio Venta:</b> $${p.precioVenta}</p>
+          <p style="margin:2px 0;"><b>Total Vendidos:</b> ${p.vendidos} unidades</p>
         </div>
       `;
       lista.appendChild(card);
     });
-
-    document.getElementById("resumen").innerText = "Ventas Totales: $" + ventasTotales;
   }
 
-  // Guardar un nuevo producto
   async function guardarProducto() {
     const nombreInput = document.getElementById("nombre");
     const compraInput = document.getElementById("precioCompra");
@@ -230,7 +194,6 @@
         });
       }
 
-      // Limpiar campos
       nombreInput.value = "";
       compraInput.value = "";
       ventaInput.value = "";
@@ -238,29 +201,7 @@
 
       renderInventario();
     } else {
-      alert("Por favor completa todos los campos con valores válidos.");
-    }
-  }
-
-  // Registrar venta o uso de 1 unidad
-  async function venderOUsar(id) {
-    const producto = await db.productos.get(id);
-    if (producto && producto.cantidad > 0) {
-      await db.productos.update(id, {
-        cantidad: producto.cantidad - 1,
-        vendidos: producto.vendidos + 1
-      });
-      renderInventario();
-    } else {
-      alert("No hay stock suficiente de este producto.");
-    }
-  }
-
-  // Eliminar producto
-  async function eliminarProducto(id) {
-    if (confirm("¿Seguro que deseas eliminar este producto del inventario?")) {
-      await db.productos.delete(id);
-      renderInventario();
+      alert("Por favor completa todos los campos.");
     }
   }
 

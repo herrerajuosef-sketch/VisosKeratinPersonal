@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Facturación - Salón de Belleza</title>
+  <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #f3f4f6;
+      padding: 12px;
+      margin: 0;
+    }
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    h1 { color: #1f2937; font-size: 1.3rem; margin: 0; }
+    .btn-link {
+      background: #4b5563;
+      color: white;
+      text-decoration: none;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: bold;
+    }
+    .card {
+      background: white;
+      padding: 16px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      margin-bottom: 16px;
+    }
+    label {
+      display: block;
+      margin-top: 10px;
+      font-weight: 600;
+      color: #374151;
+      font-size: 0.88rem;
+    }
+    input, select {
+      width: 100%;
+      padding: 11px;
+      margin-top: 4px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-family: inherit;
+      background: white;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    button {
+      width: 100%;
+      padding: 13px;
+      margin-top: 14px;
+      background: #059669;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    button.btn-add { background: #2563eb; margin-top: 8px; padding: 10px; }
+    button:active { transform: scale(0.98); }
+
+    .item-factura {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #f9fafb;
+      padding: 10px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      margin-top: 8px;
+    }
+    .btn-quitar { background: #dc2626; color: white; border: none; padding: 4px 8px; border-radius: 6px; width: auto; margin: 0; }
+    
+    .total-box {
+      font-size: 1.2rem;
+      font-weight: bold;
+      text-align: center;
+      background: #111827;
+      color: #10b981;
+      padding: 12px;
+      border-radius: 8px;
+      margin-top: 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header-bar">
+    <h1>🧾 Nueva Factura</h1>
+    <a href="index.html" class="btn-link">⬅️ Inicio</a>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0;">👤 Datos del Cliente</h3>
+    
+    <label for="clienteNombre">Nombre del cliente:</label>
+    <input type="text" id="clienteNombre" placeholder="Ej: María López">
+
+    <div class="grid-2">
+      <div>
+        <label for="clienteTel">Teléfono:</label>
+        <input type="tel" id="clienteTel" placeholder="Ej: 3001234567">
+      </div>
+      <div>
+        <label for="fechaCompra">Fecha de compra:</label>
+        <input type="date" id="fechaCompra">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0;">🛍️ Seleccionar Productos</h3>
+    
+    <label for="selectProducto">Producto del inventario:</label>
+    <select id="selectProducto"></select>
+
+    <label for="cantProducto">Cantidad:</label>
+    <input type="number" id="cantProducto" value="1" min="1">
+
+    <button type="button" class="btn-add" onclick="agregarAFactura()">➕ Agregar a la factura</button>
+
+    <div id="listaProductosFactura" style="margin-top: 14px;"></div>
+
+    <div class="total-box">
+      Total: $<span id="montoTotal">0</span>
+    </div>
+
+    <button onclick="generarFactura()">✅ Registrar y Descontar Stock</button>
+  </div>
+
+<script>
+  const db = new Dexie("DeudasAppDB");
+  db.version(2).stores({
+    deudas: '++id, &nombre, cantidad, fecha, descripcion',
+    productos: '++id, &nombre, precioCompra, precioVenta, cantidad, vendidos'
+  });
+
+  let productosInventario = [];
+  let carrito = [];
+
+  // Asignar fecha de hoy por defecto
+  document.getElementById("fechaCompra").value = new Date().toISOString().split('T')[0];
+
+  async function cargarInventario() {
+    productosInventario = await db.productos.toArray();
+    const select = document.getElementById("selectProducto");
+    select.innerHTML = "";
+
+    if (productosInventario.length === 0) {
+      select.innerHTML = "<option value=''>No hay productos en inventario</option>";
+      return;
+    }
+
+    productosInventario.forEach(p => {
+      const option = document.createElement("option");
+      option.value = p.id;
+      option.textContent = `${p.nombre} (Stock: ${p.cantidad}) - $${p.precioVenta}`;
+      select.appendChild(option);
+    });
+  }
+
+  function agregarAFactura() {
+    const select = document.getElementById("selectProducto");
+    const productoId = Number(select.value);
+    const cantidad = Number(document.getElementById("cantProducto").value);
+
+    if (!productoId || cantidad <= 0) return;
+
+    const producto = productosInventario.find(p => p.id === productoId);
+    if (!producto) return;
+
+    if (cantidad > producto.cantidad) {
+      alert(`Stock insuficiente. Solo quedan ${producto.cantidad} unidades de ${producto.nombre}.`);
+      return;
+    }
+
+    // Verificar si ya está en el carrito
+    const existe = carrito.find(item => item.id === productoId);
+    if (existe) {
+      if (existe.cantidad + cantidad > producto.cantidad) {
+        alert(`No puedes superar el stock disponible (${producto.cantidad}).`);
+        return;
+      }
+      existe.cantidad += cantidad;
+      existe.subtotal = existe.cantidad * existe.precioVenta;
+    } else {
+      carrito.push({
+        id: producto.id,
+        nombre: producto.nombre,
+        precioVenta: producto.precioVenta,
+        cantidad: cantidad,
+        subtotal: cantidad * producto.precioVenta
+      });
+    }
+
+    renderCarrito();
+  }
+
+  function quitarDelCarrito(index) {
+    carrito.splice(index, 1);
+    renderCarrito();
+  }
+
+  function renderCarrito() {
+    const contenedor = document.getElementById("listaProductosFactura");
+    contenedor.innerHTML = "";
+    let total = 0;
+
+    carrito.forEach((item, index) => {
+      total += item.subtotal;
+      const div = document.createElement("div");
+      div.className = "item-factura";
+      div.innerHTML = `
+        <div>
+          <b>${item.nombre}</b> x ${item.cantidad}<br>
+          <small style="color:#6b7280;">Subtotal: $${item.subtotal}</small>
+        </div>
+        <button class="btn-quitar" onclick="quitarDelCarrito(${index})">✕</button>
+      `;
+      contenedor.appendChild(div);
+    });
+
+    document.getElementById("montoTotal").innerText = total;
+  }
+
+  async function generarFactura() {
+    const nombre = document.getElementById("clienteNombre").value.trim();
+    const telefono = document.getElementById("clienteTel").value.trim();
+    const fecha = document.getElementById("fechaCompra").value;
+
+    if (!nombre) {
+      alert("Por favor ingresa el nombre del cliente.");
+      return;
+    }
+
+    if (carrito.length === 0) {
+      alert("Debes agregar al menos un producto a la factura.");
+      return;
+    }
+
+    // Descontar del inventario en la base de datos
+    for (const item of carrito) {
+      const prod = await db.productos.get(item.id);
+      if (prod) {
+        await db.productos.update(item.id, {
+          cantidad: prod.cantidad - item.cantidad,
+          vendidos: prod.vendidos + item.cantidad
+        });
+      }
+    }
+
+    alert("¡Factura registrada e inventario actualizado correctamente! ✅");
+    window.location.href = "inventario.html";
+  }
+
+  cargarInventario();
+</script>
+
+</body>
+</html>
