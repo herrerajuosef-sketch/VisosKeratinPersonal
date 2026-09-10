@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Registro de Deudas</title>
+  <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #f3f4f6;
+      padding: 12px;
+      margin: 0;
+    }
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    h1 {
+      color: #1f2937;
+      font-size: 1.4rem;
+      margin: 0;
+    }
+    .btn-link {
+      background: #4b5563;
+      color: white;
+      text-decoration: none;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: bold;
+    }
+    .form-container {
+      background: white;
+      padding: 16px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      margin-bottom: 16px;
+    }
+    label {
+      display: block;
+      margin-top: 12px;
+      font-weight: 600;
+      color: #374151;
+      font-size: 0.9rem;
+    }
+    input, textarea {
+      width: 100%;
+      padding: 12px;
+      margin-top: 6px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-family: inherit;
+    }
+    textarea { resize: vertical; height: 70px; }
+    button {
+      width: 100%;
+      padding: 14px;
+      margin-top: 12px;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .deuda {
+      background: #fff;
+      padding: 16px;
+      margin: 12px 0;
+      border-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .deuda-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      border-bottom: 1px solid #f3f4f6;
+      padding-bottom: 8px;
+    }
+    .deuda-nombre { font-size: 1.1rem; font-weight: bold; color: #111827; }
+    .deuda-monto { font-size: 1.2rem; font-weight: bold; color: #059669; }
+    .deuda-detalles { font-size: 0.88rem; color: #4b5563; line-height: 1.4; }
+    .acciones { display: flex; flex-direction: column; gap: 8px; }
+    .acciones-secundarias { display: flex; gap: 8px; }
+    .btn-cobrar { background: #25d366; color: #fff; margin: 0; padding: 10px; }
+    .btn-modificar { background: #4b5563; margin: 0; padding: 10px; flex: 1; }
+    .btn-eliminar { background: #dc2626; margin: 0; padding: 10px; flex: 1; }
+    #total {
+      font-size: 1.1em;
+      font-weight: bold;
+      margin: 20px 0;
+      text-align: center;
+      background: #1e293b;
+      color: white;
+      padding: 14px;
+      border-radius: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header-bar">
+    <h1>Registro de Deudas</h1>
+    <a href="registros.html" class="btn-link">⚙️ Respaldos</a>
+  </div>
+
+  <div class="form-container">
+    <label for="nombre">Nombre del Deudor:</label>
+    <input type="text" id="nombre" placeholder="Ej: María Gómez">
+
+    <label for="cantidad">Cantidad ($):</label>
+    <input type="number" id="cantidad" placeholder="Ej: 5000">
+
+    <label for="fecha">Fecha de la deuda:</label>
+    <input type="date" id="fecha">
+
+    <label for="descripcion">Descripción:</label>
+    <textarea id="descripcion" placeholder="Ej: Préstamo para compra de insumos"></textarea>
+
+    <button onclick="agregarDeuda()">➕ Agregar Deuda</button>
+  </div>
+
+  <div id="lista"></div>
+  <div id="total">Total adeudado general: $0</div>
+
+<script>
+  const db = new Dexie("DeudasAppDB");
+  db.version(1).stores({
+    deudas: '++id, &nombre, cantidad, fecha, descripcion'
+  });
+
+  document.getElementById('fecha').valueAsDate = new Date();
+
+  async function renderDeudas() {
+    const lista = document.getElementById('lista');
+    lista.innerHTML = '';
+    let total = 0;
+
+    const deudas = await db.deudas.toArray();
+
+    deudas.forEach((deuda) => {
+      total += deuda.cantidad;
+      const div = document.createElement('div');
+      div.className = 'deuda';
+      div.innerHTML = `
+        <div class="deuda-header">
+          <span class="deuda-nombre">${deuda.nombre}</span>
+          <span class="deuda-monto">$${deuda.cantidad}</span>
+        </div>
+        <div class="deuda-detalles">
+          <p style="margin:2px 0;"><b>📅 Fecha:</b> ${deuda.fecha || 'Sin fecha'}</p>
+          ${deuda.descripcion ? `<p style="margin:2px 0;"><b>📝 Detalle:</b> ${deuda.descripcion}</p>` : ''}
+        </div>
+        <div class="acciones">
+          <button class="btn-cobrar" onclick="enviarCobro(${deuda.id})">📲 Enviar Mensaje de Cobro</button>
+          <div class="acciones-secundarias">
+            <button class="btn-modificar" onclick="modificar(${deuda.id}, prompt('Monto a ajustar (negativos para pagos):'))">✏️ Modificar</button>
+            <button class="btn-eliminar" onclick="eliminar(${deuda.id})">🗑️ Eliminar</button>
+          </div>
+        </div>
+      `;
+      lista.appendChild(div);
+    });
+
+    document.getElementById('total').innerText = "Total adeudado general: $" + total;
+  }
+
+  async function agregarDeuda() {
+    const nombreInput = document.getElementById('nombre');
+    const cantidadInput = document.getElementById('cantidad');
+    const fechaInput = document.getElementById('fecha');
+    const descripcionInput = document.getElementById('descripcion');
+
+    const nombre = nombreInput.value.trim();
+    const cantidad = parseInt(cantidadInput.value);
+    const fecha = fechaInput.value;
+    const descripcion = descripcionInput.value.trim();
+
+    if (nombre && !isNaN(cantidad)) {
+      const deudaExistente = await db.deudas.where('nombre').equalsIgnoreCase(nombre).first();
+
+      if (deudaExistente) {
+        const nuevaCantidad = deudaExistente.cantidad + cantidad;
+        if (nuevaCantidad <= 0) {
+          await db.deudas.delete(deudaExistente.id);
+        } else {
+          const nuevaDesc = descripcion ? `${deudaExistente.descripcion} | ${descripcion}` : deudaExistente.descripcion;
+          await db.deudas.update(deudaExistente.id, {
+            cantidad: nuevaCantidad,
+            fecha: fecha,
+            descripcion: nuevaDesc
+          });
+        }
+      } else {
+        await db.deudas.add({ nombre, cantidad, fecha, descripcion });
+      }
+
+      nombreInput.value = '';
+      cantidadInput.value = '';
+      descripcionInput.value = '';
+      fechaInput.valueAsDate = new Date();
+      renderDeudas();
+    } else {
+      alert("Por favor ingresa Nombre y Cantidad.");
+    }
+  }
+
+async function enviarCobro(id) {
+  const deuda = await db.deudas.get(id);
+  if (!deuda) return;
+
+  const texto = `Hola ${deuda.nombre}, espero que te encuentres muy bien. 👋\n\n` +
+    `Te escribo para hacer un recordatorio cordial sobre la deuda pendiente registrada:\n\n` +
+    `📅 *Fecha:* ${deuda.fecha || 'No especificada'}\n` +
+    `📝 *Detalle:* ${deuda.descripcion || 'Sin descripción'}\n` +
+    `💰 *Monto total:* $${deuda.cantidad}\n\n` +
+    `Agradezco mucho tu apoyo con el pago oportuno cuando te sea posible. Nequi: 3166390429  Bancolombia cuenta ahorros: 65651110429`;
+
+  const mensajeURL = encodeURIComponent(texto);
+
+  // Usa el esquema nativo que activa el selector de aplicaciones (WhatsApp o WhatsApp Business)
+  window.location.href = `whatsapp://send?text=${mensajeURL}`;
+}
+
+  async function modificar(id, cantidadAjuste) {
+    const cantidad = parseInt(cantidadAjuste);
+    if (!isNaN(cantidad)) {
+      const deuda = await db.deudas.get(id);
+      if (deuda) {
+        const nuevaCantidad = deuda.cantidad + cantidad;
+        if (nuevaCantidad <= 0) {
+          await db.deudas.delete(id);
+        } else {
+          await db.deudas.update(id, { cantidad: nuevaCantidad });
+        }
+        renderDeudas();
+      }
+    }
+  }
+
+  async function eliminar(id) {
+    if (confirm("¿Seguro que deseas eliminar este registro?")) {
+      await db.deudas.delete(id);
+      renderDeudas();
+    }
+  }
+
+  renderDeudas();
+</script>
+</body>
+</html>
