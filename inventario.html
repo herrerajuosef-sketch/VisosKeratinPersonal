@@ -43,7 +43,7 @@
       color: #374151;
       font-size: 0.88rem;
     }
-    input {
+    input, textarea {
       width: 100%;
       padding: 11px;
       margin-top: 4px;
@@ -51,6 +51,10 @@
       border-radius: 8px;
       font-size: 0.95rem;
       font-family: inherit;
+    }
+    textarea {
+      resize: vertical;
+      height: 60px;
     }
     .grid-2 {
       display: grid;
@@ -69,6 +73,7 @@
       font-weight: bold;
       cursor: pointer;
     }
+    button:active { transform: scale(0.98); }
 
     .producto-card {
       background: #fff;
@@ -92,48 +97,81 @@
       font-weight: bold;
     }
     .producto-detalles { font-size: 0.85rem; color: #4b5563; margin-top: 6px; }
+    .producto-descripcion {
+      font-size: 0.82rem;
+      color: #6b7280;
+      font-style: italic;
+      margin-top: 4px;
+      background: #f9fafb;
+      padding: 6px 8px;
+      border-radius: 6px;
+    }
+    .producto-footer {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 8px;
+      border-top: 1px solid #f3f4f6;
+      padding-top: 6px;
+    }
+    .btn-eliminar {
+      background: #fee2e2;
+      color: #dc2626;
+      border: 1px solid #fca5a5;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: bold;
+      cursor: pointer;
+      width: auto;
+      margin-top: 0;
+    }
   </style>
 </head>
 <body>
 
   <div class="header-bar">
-    <h1>💄 Inventario Digital</h1>
+    <h1>Inventario Digital</h1>
     <a href="index.html" class="btn-link">⬅️ Inicio</a>
   </div>
 
   <!-- REGISTRAR PRODUCTO -->
   <div class="card">
-    <h3 style="margin-top:0;">➕ Agregar Producto / Insumo</h3>
+    <h3 style="margin-top:0;">➕ Agregar Producto</h3>
     
     <label for="nombre">Nombre del producto:</label>
-    <input type="text" id="nombre" placeholder="Ej: Esmalte Semipermanente">
+    <input type="text" id="nombre" placeholder="Ej: Texturizante">
+
+    <label for="descripcion">Descripción / Notas (Opcional):</label>
+    <textarea id="descripcion" placeholder="Añadir Descripcion..."></textarea>
 
     <div class="grid-2">
       <div>
         <label for="precioCompra">Costo compra ($):</label>
-        <input type="number" id="precioCompra" placeholder="12000">
+        <input type="number" id="precioCompra" placeholder="0">
       </div>
       <div>
         <label for="precioVenta">Precio venta ($):</label>
-        <input type="number" id="precioVenta" placeholder="20000">
+        <input type="number" id="precioVenta" placeholder="0">
       </div>
     </div>
 
     <label for="cantidad">Cantidad a ingresar:</label>
-    <input type="number" id="cantidad" placeholder="5">
+    <input type="number" id="cantidad" placeholder="0">
 
     <button onclick="guardarProducto()">💾 Registrar en Inventario</button>
   </div>
 
   <h3 style="color: #374151; margin-bottom: 8px;">📦 Stock Disponible</h3>
-  <!-- LISTA DE PRODUCTOS (SOLO LECTURA DE STOCK) -->
+  <!-- LISTA DE PRODUCTOS -->
   <div id="listaProductos"></div>
 
 <script>
+  // Base de datos actualizable
   const db = new Dexie("DeudasAppDB");
-  db.version(2).stores({
+  db.version(3).stores({
     deudas: '++id, &nombre, cantidad, fecha, descripcion',
-    productos: '++id, &nombre, precioCompra, precioVenta, cantidad, vendidos'
+    productos: '++id, &nombre, precioCompra, precioVenta, cantidad, vendidos, descripcion',
+    facturas: '++id, clienteNombre, clienteTel, fecha, productos, total'
   });
 
   async function renderInventario() {
@@ -155,9 +193,13 @@
           <span class="producto-nombre">${p.nombre}</span>
           <span class="producto-stock">Stock: ${p.cantidad}</span>
         </div>
+        ${p.descripcion ? `<div class="producto-descripcion">📝 ${p.descripcion}</div>` : ''}
         <div class="producto-detalles">
           <p style="margin:2px 0;"><b>Costo:</b> $${p.precioCompra} | <b>Precio Venta:</b> $${p.precioVenta}</p>
           <p style="margin:2px 0;"><b>Total Vendidos:</b> ${p.vendidos} unidades</p>
+        </div>
+        <div class="producto-footer">
+          <button class="btn-eliminar" onclick="eliminarProducto(${p.id}, '${p.nombre}')">🗑️ Eliminar</button>
         </div>
       `;
       lista.appendChild(card);
@@ -166,11 +208,13 @@
 
   async function guardarProducto() {
     const nombreInput = document.getElementById("nombre");
+    const descInput = document.getElementById("descripcion");
     const compraInput = document.getElementById("precioCompra");
     const ventaInput = document.getElementById("precioVenta");
     const cantidadInput = document.getElementById("cantidad");
 
     const nombre = nombreInput.value.trim();
+    const descripcion = descInput.value.trim();
     const precioCompra = Number(compraInput.value);
     const precioVenta = Number(ventaInput.value);
     const cantidad = Number(cantidadInput.value);
@@ -182,11 +226,13 @@
         await db.productos.update(productoExistente.id, {
           cantidad: productoExistente.cantidad + cantidad,
           precioCompra: precioCompra,
-          precioVenta: precioVenta
+          precioVenta: precioVenta,
+          descripcion: descripcion || productoExistente.descripcion
         });
       } else {
         await db.productos.add({
           nombre,
+          descripcion,
           precioCompra,
           precioVenta,
           cantidad,
@@ -195,13 +241,21 @@
       }
 
       nombreInput.value = "";
+      descInput.value = "";
       compraInput.value = "";
       ventaInput.value = "";
       cantidadInput.value = "";
 
       renderInventario();
     } else {
-      alert("Por favor completa todos los campos.");
+      alert("Por favor completa los campos obligatorios (Nombre, Costo, Precio Venta y Cantidad).");
+    }
+  }
+
+  async function eliminarProducto(id, nombre) {
+    if (confirm(`¿Estás seguro de que deseas eliminar "${nombre}" del inventario?`)) {
+      await db.productos.delete(id);
+      renderInventario();
     }
   }
 
